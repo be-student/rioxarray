@@ -1,3 +1,5 @@
+import warnings
+
 import numpy
 import xarray
 
@@ -46,7 +48,9 @@ def test_reproject_match__exact():
         ],
     )
     da2.rio.write_crs(4326, inplace=True)
-    resampled = da1.rio.reproject_match(da2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PendingDeprecationWarning)
+        resampled = da1.rio.reproject_match(da2)
     assert resampled.x.attrs == {
         "axis": "X",
         "long_name": "longitude",
