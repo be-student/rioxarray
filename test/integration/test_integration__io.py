@@ -5,6 +5,7 @@ import logging
 import os
 import pickle
 import shutil
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -1340,6 +1341,28 @@ def test_non_rectilinear__load_coords(open_rasterio):
                 assert_almost_equal(
                     rds.xy(yi, xi), (subset.xc.item(), subset.yc.item())
                 )
+
+
+def test_open_rasterio_closes_cached_files_at_shutdown():
+    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
+    script = f"""
+import rioxarray
+
+for _ in range(100):
+    raster = rioxarray.open_rasterio({test_file!r})
+
+print(raster.shape)
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Error in sys.excepthook" not in result.stderr
 
 
 def test_non_rectilinear__skip_parse_coordinates(open_rasterio):

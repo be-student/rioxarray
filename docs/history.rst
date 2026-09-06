@@ -3,6 +3,7 @@ History
 
 Latest
 ------
+- BUG: Close cached rasterio files before interpreter shutdown (#929)
 
 0.23.0
 ------
