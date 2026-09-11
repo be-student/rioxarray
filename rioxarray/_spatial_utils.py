@@ -116,13 +116,15 @@ def affine_to_coords(
     """
     transform = affine @ affine.translation(0.5, 0.5)
     if affine.is_rectilinear and not _affine_has_rotation(affine):
-        x_coords, _ = transform @ (numpy.arange(width), numpy.zeros(width))
-        _, y_coords = transform @ (numpy.zeros(height), numpy.arange(height))
+        x_coords = transform.c + transform.a * numpy.arange(width)
+        y_coords = transform.f + transform.e * numpy.arange(height)
     else:
-        x_coords, y_coords = transform @ numpy.meshgrid(
+        col_coords, row_coords = numpy.meshgrid(
             numpy.arange(width),
             numpy.arange(height),
         )
+        x_coords = transform.c + transform.a * col_coords + transform.b * row_coords
+        y_coords = transform.f + transform.d * col_coords + transform.e * row_coords
     return {y_dim: y_coords, x_dim: x_coords}
 
 
