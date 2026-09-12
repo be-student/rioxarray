@@ -3,6 +3,7 @@ History
 
 Latest
 ------
+- DEP: Require rasterio>=1.5.1 and affine>=3 for matrix multiplication support (#939)
 
 0.23.0
 ------
