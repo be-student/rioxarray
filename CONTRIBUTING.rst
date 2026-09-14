@@ -169,3 +169,7 @@ Tips
 To run a subset of tests::
 
 $ pytest test/unit/test_show_versions.py::test_get_main_info
+
+When using NumPy's ``assert_almost_equal`` to compare affine transforms, pass
+``tuple(transform)`` for both operands. This compares all nine coefficients
+with the requested precision and avoids treating Affine 3 objects as scalars.
