@@ -6,12 +6,14 @@ This file was adopted from: https://github.com/pydata/xarray # noqa
 Source file: https://github.com/pydata/xarray/blob/1d7bcbdc75b6d556c04e2c7d7a042e4379e15303/xarray/backends/rasterio_.py # noqa
 """
 # pylint: disable=too-many-lines
+import atexit
 import contextlib
 import importlib.metadata
 import os
 import re
 import threading
 import warnings
+import weakref
 from collections import defaultdict
 from collections.abc import Hashable, Iterable
 from typing import Any, Optional, Union
@@ -43,6 +45,14 @@ from rioxarray.exceptions import RioXarrayError
 # TODO: should this be GDAL_LOCK instead?
 RASTERIO_LOCK = SerializableLock()
 NO_LOCK = contextlib.nullcontext()
+_OPEN_RASTERIO_MANAGERS: weakref.WeakSet[FileManager] = weakref.WeakSet()
+
+
+@atexit.register
+def _close_rasterio_managers():
+    """Close remaining rasterio handles before interpreter teardown."""
+    for manager in list(_OPEN_RASTERIO_MANAGERS):
+        manager.close(needs_lock=False)
 
 
 def _ensure_warped_vrt(riods, vrt_params):
@@ -1137,6 +1147,7 @@ def open_rasterio(
             )
         else:
             manager = URIManager(file_opener, filename, mode="r", kwargs=open_kwargs)
+        _OPEN_RASTERIO_MANAGERS.add(manager)
         riods = manager.acquire()
         captured_warnings = rio_warnings.copy()
 
