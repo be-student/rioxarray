@@ -47,21 +47,36 @@ from rioxarray.exceptions import RioXarrayError
 RASTERIO_LOCK = SerializableLock()
 NO_LOCK = contextlib.nullcontext()
 _OPEN_RASTERIO_MANAGERS: weakref.WeakSet[FileManager] = weakref.WeakSet()
+_OPEN_RASTERIO_FILES: dict[Any, Any] = {}
 
 
 @atexit.register
 def _close_rasterio_managers():
     """Close remaining rasterio handles before interpreter teardown."""
     for manager in list(_OPEN_RASTERIO_MANAGERS):
-        manager.close(needs_lock=False)
+        with contextlib.suppress(Exception):
+            manager.close(needs_lock=False)
+    while _OPEN_RASTERIO_FILES:
+        cache_key, cache = _OPEN_RASTERIO_FILES.popitem()
+        with contextlib.suppress(Exception):
+            file_handle = cache.pop(cache_key, None)
+            if file_handle is not None:
+                file_handle.close()
 
 
 class CachingFileManager(XarrayCachingFileManager):
-    """Track cached rasterio handles, including managers restored from pickle."""
+    """Track acquired rasterio handles until explicitly closed."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def _acquire_with_cache_info(self, needs_lock: bool = True) -> tuple[Any, bool]:
+        file, cached = super()._acquire_with_cache_info(needs_lock)
         _OPEN_RASTERIO_MANAGERS.add(self)
+        _OPEN_RASTERIO_FILES[self._key] = self._cache
+        return file, cached
+
+    def close(self, needs_lock: bool = True) -> None:
+        super().close(needs_lock=needs_lock)
+        _OPEN_RASTERIO_MANAGERS.discard(self)
+        _OPEN_RASTERIO_FILES.pop(self._key, None)
 
 
 def _ensure_warped_vrt(riods, vrt_params):

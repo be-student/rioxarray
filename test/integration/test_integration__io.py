@@ -1365,6 +1365,42 @@ print(raster.shape)
     assert "Error in sys.excepthook" not in result.stderr
 
 
+def test_caching_file_manager_closes_locked_file_at_shutdown():
+    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
+    script = f"""
+import gc
+import threading
+
+import rasterio
+
+from rioxarray._io import CachingFileManager
+
+lock = threading.Lock()
+manager = CachingFileManager(
+    rasterio.open,
+    {test_file!r},
+    mode="r",
+    kwargs={{"sharing": False}},
+    lock=lock,
+)
+manager.acquire()
+lock.acquire()
+del manager
+gc.collect()
+print("done")
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Error in sys.excepthook" not in result.stderr
+
+
 @pytest.mark.parametrize("lock", [None, False])
 def test_open_rasterio_closes_pickle_restored_files_at_shutdown(lock):
     test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
