@@ -1365,6 +1365,37 @@ print(raster.shape)
     assert "Error in sys.excepthook" not in result.stderr
 
 
+@pytest.mark.parametrize("lock", [None, False])
+def test_open_rasterio_closes_pickle_restored_files_at_shutdown(lock):
+    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
+    lock_arg = "" if lock is None else ", lock=False"
+    script = f"""
+import pickle
+
+import rioxarray
+
+restored_rasters = []
+for _ in range(100):
+    with rioxarray.open_rasterio({test_file!r}{lock_arg}) as raster:
+        restored_rasters.append(pickle.loads(pickle.dumps(raster)))
+
+for raster in restored_rasters:
+    raster.load()
+
+print(restored_rasters[-1].shape)
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Error in sys.excepthook" not in result.stderr
+
+
 def test_non_rectilinear__skip_parse_coordinates(open_rasterio):
     test_file = os.path.join(TEST_INPUT_DATA_DIR, "2d_test.tif")
     with open_rasterio(test_file, parse_coordinates=False) as xds:

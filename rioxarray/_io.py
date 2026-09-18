@@ -26,7 +26,8 @@ from rasterio.errors import NotGeoreferencedWarning
 from rasterio.vrt import WarpedVRT
 from xarray import Dataset, IndexVariable
 from xarray.backends.common import BackendArray
-from xarray.backends.file_manager import CachingFileManager, FileManager
+from xarray.backends.file_manager import CachingFileManager as XarrayCachingFileManager
+from xarray.backends.file_manager import FileManager
 from xarray.backends.locks import SerializableLock
 from xarray.coding import times, variables
 from xarray.core import indexing
@@ -53,6 +54,14 @@ def _close_rasterio_managers():
     """Close remaining rasterio handles before interpreter teardown."""
     for manager in list(_OPEN_RASTERIO_MANAGERS):
         manager.close(needs_lock=False)
+
+
+class CachingFileManager(XarrayCachingFileManager):
+    """Track cached rasterio handles, including managers restored from pickle."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        _OPEN_RASTERIO_MANAGERS.add(self)
 
 
 def _ensure_warped_vrt(riods, vrt_params):
@@ -266,6 +275,7 @@ class URIManager(FileManager):
         self._mode = mode
         self._kwargs = {} if kwargs is None else dict(kwargs)
         self._local = FileHandleLocal()
+        _OPEN_RASTERIO_MANAGERS.add(self)
 
     def acquire(self, needs_lock=True):
         if self._local.thread_manager is None:
@@ -1147,7 +1157,6 @@ def open_rasterio(
             )
         else:
             manager = URIManager(file_opener, filename, mode="r", kwargs=open_kwargs)
-        _OPEN_RASTERIO_MANAGERS.add(manager)
         riods = manager.acquire()
         captured_warnings = rio_warnings.copy()
 
