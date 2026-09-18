@@ -1401,6 +1401,38 @@ print("done")
     assert "Error in sys.excepthook" not in result.stderr
 
 
+def test_shutdown_closes_shared_xarray_file_cache():
+    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
+    script = f"""
+import rasterio
+from xarray.backends.file_manager import CachingFileManager
+
+from rioxarray._io import _close_file_managers
+
+manager = CachingFileManager(
+    rasterio.open,
+    {test_file!r},
+    mode="r",
+    kwargs={{"sharing": False}},
+)
+raster = manager.acquire()
+_close_file_managers()
+assert raster.closed
+print("closed")
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "closed"
+    assert "Error in sys.excepthook" not in result.stderr
+
+
 @pytest.mark.parametrize("lock", [None, False])
 def test_open_rasterio_closes_pickle_restored_files_at_shutdown(lock):
     test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
