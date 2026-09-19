@@ -5,7 +5,6 @@ import logging
 import os
 import pickle
 import shutil
-import subprocess
 import sys
 import tempfile
 import warnings
@@ -1341,95 +1340,6 @@ def test_non_rectilinear__load_coords(open_rasterio):
                 assert_almost_equal(
                     rds.xy(yi, xi), (subset.xc.item(), subset.yc.item())
                 )
-
-
-def test_open_rasterio_closes_cached_files_at_shutdown():
-    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
-    script = f"""
-import rioxarray
-
-for _ in range(100):
-    raster = rioxarray.open_rasterio({test_file!r})
-
-print(raster.shape)
-"""
-
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-
-    assert result.returncode == 0
-    assert "Error in sys.excepthook" not in result.stderr
-
-
-def test_caching_file_manager_closes_locked_file_at_shutdown():
-    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
-    script = f"""
-import gc
-import threading
-
-import rasterio
-
-from rioxarray._io import CachingFileManager
-
-lock = threading.Lock()
-manager = CachingFileManager(
-    rasterio.open,
-    {test_file!r},
-    mode="r",
-    kwargs={{"sharing": False}},
-    lock=lock,
-)
-manager.acquire()
-lock.acquire()
-del manager
-gc.collect()
-print("done")
-"""
-
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-
-    assert result.returncode == 0
-    assert "Error in sys.excepthook" not in result.stderr
-
-
-@pytest.mark.parametrize("lock", [None, False])
-def test_open_rasterio_closes_pickle_restored_files_at_shutdown(lock):
-    test_file = os.path.join(TEST_INPUT_DATA_DIR, "cog.tif")
-    lock_arg = "" if lock is None else ", lock=False"
-    script = f"""
-import pickle
-
-import rioxarray
-
-restored_rasters = []
-for _ in range(100):
-    with rioxarray.open_rasterio({test_file!r}{lock_arg}) as raster:
-        restored_rasters.append(pickle.loads(pickle.dumps(raster)))
-
-for raster in restored_rasters:
-    raster.load()
-
-print(restored_rasters[-1].shape)
-"""
-
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-
-    assert result.returncode == 0
-    assert "Error in sys.excepthook" not in result.stderr
 
 
 def test_non_rectilinear__skip_parse_coordinates(open_rasterio):

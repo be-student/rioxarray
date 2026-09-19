@@ -6,14 +6,12 @@ This file was adopted from: https://github.com/pydata/xarray # noqa
 Source file: https://github.com/pydata/xarray/blob/1d7bcbdc75b6d556c04e2c7d7a042e4379e15303/xarray/backends/rasterio_.py # noqa
 """
 # pylint: disable=too-many-lines
-import atexit
 import contextlib
 import importlib.metadata
 import os
 import re
 import threading
 import warnings
-import weakref
 from collections import defaultdict
 from collections.abc import Hashable, Iterable
 from typing import Any, Optional, Union
@@ -26,8 +24,7 @@ from rasterio.errors import NotGeoreferencedWarning
 from rasterio.vrt import WarpedVRT
 from xarray import Dataset, IndexVariable
 from xarray.backends.common import BackendArray
-from xarray.backends.file_manager import CachingFileManager as XarrayCachingFileManager
-from xarray.backends.file_manager import FileManager
+from xarray.backends.file_manager import CachingFileManager, FileManager
 from xarray.backends.locks import SerializableLock
 from xarray.coding import times, variables
 from xarray.core import indexing
@@ -46,37 +43,6 @@ from rioxarray.exceptions import RioXarrayError
 # TODO: should this be GDAL_LOCK instead?
 RASTERIO_LOCK = SerializableLock()
 NO_LOCK = contextlib.nullcontext()
-_OPEN_RASTERIO_MANAGERS: weakref.WeakSet[FileManager] = weakref.WeakSet()
-_OPEN_RASTERIO_FILES: dict[Any, Any] = {}
-
-
-@atexit.register
-def _close_rasterio_managers():
-    """Close remaining rasterio handles before interpreter teardown."""
-    for manager in list(_OPEN_RASTERIO_MANAGERS):
-        with contextlib.suppress(Exception):
-            manager.close(needs_lock=False)
-    while _OPEN_RASTERIO_FILES:
-        cache_key, cache = _OPEN_RASTERIO_FILES.popitem()
-        with contextlib.suppress(Exception):
-            file_handle = cache.pop(cache_key, None)
-            if file_handle is not None:
-                file_handle.close()
-
-
-class CachingFileManager(XarrayCachingFileManager):
-    """Track acquired rasterio handles until explicitly closed."""
-
-    def _acquire_with_cache_info(self, needs_lock: bool = True) -> tuple[Any, bool]:
-        file, cached = super()._acquire_with_cache_info(needs_lock)
-        _OPEN_RASTERIO_MANAGERS.add(self)
-        _OPEN_RASTERIO_FILES[self._key] = self._cache
-        return file, cached
-
-    def close(self, needs_lock: bool = True) -> None:
-        super().close(needs_lock=needs_lock)
-        _OPEN_RASTERIO_MANAGERS.discard(self)
-        _OPEN_RASTERIO_FILES.pop(self._key, None)
 
 
 def _ensure_warped_vrt(riods, vrt_params):
@@ -290,7 +256,6 @@ class URIManager(FileManager):
         self._mode = mode
         self._kwargs = {} if kwargs is None else dict(kwargs)
         self._local = FileHandleLocal()
-        _OPEN_RASTERIO_MANAGERS.add(self)
 
     def acquire(self, needs_lock=True):
         if self._local.thread_manager is None:

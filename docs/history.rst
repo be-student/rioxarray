@@ -3,7 +3,6 @@ History
 
 Latest
 ------
-- BUG: Close cached rasterio files before interpreter shutdown (#929)
 - DEP: Require rasterio>=1.5.1 and affine>=3 for matrix multiplication support (#939)
 
 0.23.0

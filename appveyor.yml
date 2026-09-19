@@ -27,4 +27,4 @@ install:
 build: false
 
 test_script:
-  - python test/run_appveyor_tests.py --cov-report term-missing --cov=rioxarray
+  - python -m pytest --cov-report term-missing --cov=rioxarray
