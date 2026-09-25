@@ -5,7 +5,7 @@ import copy
 import math
 import warnings
 from collections.abc import Hashable
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable, Optional, Union, cast
 
 import numpy
 import rasterio.mask
@@ -114,7 +114,8 @@ def affine_to_coords(
     dict: x and y coordinate arrays.
 
     """
-    transform = affine @ affine.translation(0.5, 0.5)
+    # Affine's typed overloads do not cover NumPy coordinate arrays.
+    transform = cast(Any, affine @ affine.translation(0.5, 0.5))
     if affine.is_rectilinear and not _affine_has_rotation(affine):
         x_coords, _ = transform @ (numpy.arange(width), numpy.zeros(width))
         _, y_coords = transform @ (numpy.zeros(height), numpy.arange(height))
